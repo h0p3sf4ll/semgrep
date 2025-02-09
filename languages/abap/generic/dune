@@ -1,0 +1,5 @@
+(library
+ (name Parse_abap)
+ (public_name semgrep.languages.abap.generic.Parse_abap)
+ (modules AST_abap lexer_abap Parse_abap)
+ (libraries base))

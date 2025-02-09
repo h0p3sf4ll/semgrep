@@ -60,6 +60,10 @@ let just_parse_with_lang lang file : Parsing_result2.t =
         tolerated_errors = [];
         stat = Parsing_stat.default_stat !!file;
       }
+  | Lang.Abap ->
+      run file
+        [ Pfff (throw_tokens Parse_abap.parse_source) ]
+        (fun ast -> ast)
   (* Menhir and Tree-sitter *)
   | Lang.C
   | Lang.Cpp ->

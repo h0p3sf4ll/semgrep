@@ -38,6 +38,8 @@ let parse_pattern options lang str =
   | Lang.Scala ->
       let any = Parse_scala.any_of_string str in
       Scala_to_generic.any any
+  | Lang.Abap ->
+      Parse_abap.parse_source ~source:str
   (* Use menhir and tree-sitter *)
   | Lang.Go ->
       let any = Parse_go.any_of_string str in
@@ -46,6 +48,7 @@ let parse_pattern options lang str =
       let any_cst = Parse_php.any_of_string str in
       let any = Ast_php_build.any any_cst in
       Php_to_generic.any any
+  
   | Lang.Ocaml ->
       let any = Parse_ml.any_of_string str in
       Ocaml_to_generic.any any
