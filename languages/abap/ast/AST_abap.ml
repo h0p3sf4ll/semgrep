@@ -1,52 +1,57 @@
 (* AST_abap.ml *)
 open Base
 
-type ast =
-  | Program of ast list
-  | Statement of string * ast list  (* Generic statement with raw text and possible children *)
+type t =
+  | Program of t list
+  | Statement of string * t list         (* Generic statement with raw text and optional children *)
   | Expression of string
-  | BinaryOp of string * ast * ast   (* Operator, left expression, right expression *)
+  | BinaryOp of string * t * t             (* Operator, left expression, right expression *)
+  | Assignment of {                      (* New variant for assignments *)
+        target: t;
+        operator: string;
+        source: t;
+    }
   | IfStatement of {
-      condition : ast;
-      then_branch : ast list;
-      elseif_branches : (ast * ast list) list;
-      else_branch : ast list option;
+      condition : t;
+      then_branch : t list;
+      elseif_branches : (t * t list) list;
+      else_branch : t list option;
     }
   | CaseStatement of {
-      expression : ast;
-      when_branches : (ast * ast list) list;
-      else_branch : ast list option;
+      expression : t;
+      when_branches : (t * t list) list;
+      else_branch : t list option;
     }
   | Loop of {
-      loop_type : string;  (* "DO" or "WHILE" *)
-      condition : ast;
-      body : ast list;
+      loop_type : string;                  (* "DO" or "WHILE" *)
+      condition : t;
+      body : t list;
     }
-  | LoopBlock of ast list                     (* LOOP ... ENDLOOP *)
+  | LoopBlock of t list                    (* Generic LOOP ... ENDLOOP *)
   | LoopAt of {
-      table : ast;
-      into : ast option;
-      body : ast list;
+      table : t;
+      into : t option;
+      body : t list;
     }
   | ForLoop of {
-      iterator : ast;
-      collection : ast;
-      body : ast list;
+      iterator : t;
+      collection : t;
+      body : t list;
     }
   | FunctionDef of {
-      def_type : string;   (* "FUNCTION" or "FORM" *)
+      def_type : string;                   (* "FUNCTION" or "FORM" *)
       name : string;
-      parameters : ast list;
-      body : ast list;
+      parameters : t list;
+      body : t list;
     }
   | ClassDef of {
       name : string;
-      body : ast list;
+      body : t list;
     }
   | MethodDef of {
       name : string;
-      parameters : ast list;
-      body : ast list;
+      parameters : t list;
+      body : t list;
     }
   | DataDeclaration of {
       name : string;
@@ -54,79 +59,79 @@ type ast =
     }
   | ConstantDeclaration of {
       name : string;
-      value : ast;
+      value : t;
     }
-  | ParametersDeclaration of { declarations : ast list }
-  | TypesDeclaration of { declarations : ast list }
-  | TablesDeclaration of { declarations : ast list }
+  | ParametersDeclaration of { declarations : t list }
+  | TypesDeclaration of { declarations : t list }
+  | TablesDeclaration of { declarations : t list }
   | TryCatch of {
-      try_block : ast list;
-      catch_blocks : (string * ast list) list;
+      try_block : t list;
+      catch_blocks : (string * t list) list;
     }
   | SelectStatement of {
-      select_expr : ast;
-      from_clause : ast;
-      where_clause : ast option;
+      select_expr : t;
+      from_clause : t;
+      where_clause : t option;
     }
   | ReadTable of {
-      table : ast;
-      key : ast option;
+      table : t;
+      key : t option;
     }
   | PerformStatement of {
       routine : string;
-      using : ast list option;
+      using : t list option;
     }
   | CallFunction of {
-      function_name : ast;
-      parameters : ast list option;
-      destination : ast option;
+      function_name : t;
+      parameters : t list option;
+      destination : t option;
     }
   | CallMethod of {
-      method_name : ast;
-      parameters : ast list option;
+      method_name : t;
+      parameters : t list option;
     }
-  | WriteStatement of { expr : ast }
+  | WriteStatement of { expr : t }
   | CommitWork
   | RollbackWork
   | UpdateStatement of {
-      table : ast;
-      set_clause : ast option;
-      where_clause : ast option;
+      table : t;
+      set_clause : t option;
+      where_clause : t option;
     }
   | InsertStatement of {
-      table : ast;
-      values : ast option;
+      table : t;
+      values : t option;
     }
   | DeleteStatement of {
-      table : ast;
-      where_clause : ast option;
+      table : t;
+      where_clause : t option;
     }
   | CryptoStatement of {
-      op : string;         (* "ENCRYPT", "DECRYPT", "HASH" *)
-      argument : ast;
+      op : string;                         (* "ENCRYPT", "DECRYPT", "HASH" *)
+      argument : t;
     }
-  | DeprecatedCrypt of ast                          (* DEPRECATED_CRYPT *)
-  | SxpgCommandExecute of ast                       (* SXPG_COMMAND_EXECUTE *)
-  | SqlStatement of string * ast list               (* SQL commands *)
+  | DeprecatedCrypt of t                  (* DEPRECATED_CRYPT *)
+  | SxpgCommandExecute of t               (* SXPG_COMMAND_EXECUTE *)
+  | SqlStatement of string * t list       (* SQL commands *)
   | ConcatStatement of {
-      sources : ast list;
-      destination : ast;
-    }  (* CONCATENATE ... INTO *)
+      sources : t list;
+      destination : t;
+    }                                      (* CONCATENATE ... INTO *)
   | SystemCommand of {
-      command : ast;       (* SYSTEM, SUBMIT, EXEC, etc. *)
+      command : t;                         (* SYSTEM, SUBMIT, EXEC, etc. *)
     }
   | FileAccessStatement of {
-      action : string;     (* "OPEN", "READ", "CLOSE" *)
-      dataset : ast;
-      mode : string;       (* "INPUT" or "OUTPUT", if specified *)
+      action : string;                     (* "OPEN", "READ", "CLOSE" *)
+      dataset : t;
+      mode : string;                       (* "INPUT" or "OUTPUT" *)
     }
   | AuthorityCheck of {
-      check_expr : ast;
+      check_expr : t;
     }
   | Authenticate of {
-      credentials : ast;
+      credentials : t;
     }
   | DebugStatement of {
-      debug_cmd : string;  (* "BREAK-POINT", "WATCHPOINT", "DEBUG-POINT" *)
+      debug_cmd : string;                  (* "BREAK-POINT", "WATCHPOINT", "DEBUG-POINT" *)
     }
   | Unknown of string

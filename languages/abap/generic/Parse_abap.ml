@@ -1,10 +1,8 @@
 (* Parse_abap.ml *)
 (*
-  This file merges the parser implementation and the external interface
-  for the ABAP parser. It provides functions parse_source and to_tree that
-  Semgrep uses to convert ABAP source code into an abstract syntax tree (AST).
-
-  The implementation does not use Tree-sitter—everything is handled by custom code.
+  This file implements the ABAP parser for Semgrep.
+  It does not use Tree-sitter but our custom lexer and parser.
+  It exposes parse_source and to_tree for use by Semgrep.
 *)
 
 open Base
@@ -26,6 +24,13 @@ let current_token state =
 
 let advance state =
   state.pos <- state.pos + 1
+
+(* Lookahead helper: returns the token immediately after the current one *)
+let peek_next state =
+  if state.pos + 1 < List.length state.tokens then
+    List.nth_exn state.tokens (state.pos + 1)
+  else
+    Lexer_abap.T_EOF
 
 let rec eat_newlines state =
   match current_token state with
@@ -81,7 +86,7 @@ let operator_precedence op =
   match op with
   | "+" | "-" -> 1
   | "*" | "/" -> 2
-  | "EQ" | "NE" -> 0  (* Relational operators: can be handled as needed *)
+  | "EQ" | "NE" -> 0
   | _ -> 0
 
 let rec parse_binary_op_rhs state expr prec =
@@ -97,7 +102,7 @@ let rec parse_binary_op_rhs state expr prec =
             match current_token state with
             | Lexer_abap.T_SYMBOL next_op when List.mem ~equal:String.equal ["+"; "-"; "*"; "/"; "EQ"; "NE"] next_op ->
                 let next_prec = operator_precedence next_op in
-                if next_prec > op_prec then parse_binary_op_rhs state current_rhs (op_prec + 1)
+                if next_prec > op_prec then parse_binary_op_rhs state current_rhs (op_prec+1)
                 else current_rhs
             | _ -> current_rhs
           in
@@ -112,10 +117,30 @@ and parse_expression state : t =
   let lhs = parse_primary state in
   parse_binary_op_rhs state lhs 0
 
+(* --- Assignment Parsing --- *)
+
+and parse_assignment state : t =
+  (* We assume an assignment statement is of the form: target "=" source *)
+  let target = parse_primary state in
+  (match current_token state with
+   | Lexer_abap.T_SYMBOL "=" -> advance state
+   | _ -> failwith "Expected '=' in assignment");
+  let source = parse_expression state in
+  Assignment { target; operator = "="; source }
+
 (* --- Statement Parsing --- *)
 
 let rec parse_statement state : t =
   eat_newlines state;
+  (* Check for assignment if the statement starts with an identifier followed by "=" *)
+  (match current_token state with
+   | Lexer_abap.T_IDENTIFIER _ ->
+       (match peek_next state with
+        | Lexer_abap.T_SYMBOL "=" -> parse_assignment state
+        | _ -> parse_statement_not_assignment state)
+   | _ -> parse_statement_not_assignment state)
+
+and parse_statement_not_assignment state : t =
   match current_token state with
   | Lexer_abap.T_KEYWORD kw ->
       (match kw with
@@ -153,7 +178,7 @@ let rec parse_statement state : t =
        | "SQL" -> parse_sql_statement state
        | "CONCATENATE" -> parse_concat_statement state
        | "SYSTEM" | "SUBMIT" | "EXEC" -> parse_system_command state
-       | "OPEN" | "CLOSE" -> 
+       | "OPEN" | "CLOSE" ->
            parse_file_access_statement state (match current_token state with
                                               | Lexer_abap.T_KEYWORD s -> s
                                               | _ -> "UNKNOWN")
@@ -713,7 +738,10 @@ and parse_sql_statement state : t =
     | Lexer_abap.T_NEWLINE | Lexer_abap.T_EOF -> List.rev acc
     | tok ->
         let txt = (match tok with
-                   | Lexer_abap.T_IDENTIFIER s | Lexer_abap.T_KEYWORD s | Lexer_abap.T_NUMBER s | Lexer_abap.T_SYMBOL s -> s
+                   | Lexer_abap.T_IDENTIFIER s
+                   | Lexer_abap.T_KEYWORD s
+                   | Lexer_abap.T_NUMBER s
+                   | Lexer_abap.T_SYMBOL s -> s
                    | Lexer_abap.T_STRING s -> "\"" ^ s ^ "\""
                    | _ -> "")
         in
@@ -810,7 +838,6 @@ let parse_program source : t =
 (* --- External Interface --- *)
 
 let parse_source ?(keep_all_comments=false) ~source =
-  (* The keep_all_comments flag is not used; comments are dropped during lexing *)
   parse_program source
 
 let to_tree ?(handle_errors=false) tree =
